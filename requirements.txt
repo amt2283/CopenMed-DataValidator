@@ -1,0 +1,14 @@
+# Requisitos mínimos del proyecto
+# Se requiere Python 3.8 o superior.
+
+# Librerías de terceros:
+
+# pandas: para la manipulación y análisis de datos en formato CSV, Excel y TXT.
+pandas==1.5.3
+
+# requests: para realizar peticiones HTTP, por ejemplo, al servicio Ollama.
+requests==2.28.1
+
+# Nota:
+# Las demás librerías utilizadas (os, json, logging, datetime, re, typing, argparse) 
+# forman parte de la biblioteca estándar de Python y no requieren instalación adicional.
