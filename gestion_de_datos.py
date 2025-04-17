@@ -285,39 +285,39 @@ class DataLoader:
             # 1. Intentar con formato extendido con paréntesis anidados
             initial_match = re.match(r"^(\d+):\s*\((.*)\)\s*([\d.]+)(?:,)?$", entry)
             if initial_match:
-                line_num = initial_match.group(1)
+                linea = initial_match.group(1)
                 inner_content = initial_match.group(2)
-                score = initial_match.group(3)
+                fuerza_relacion = initial_match.group(3)
                 
                 # Extraer primer código y su texto (se permite anidamiento en el contenido)
-                code1_match = re.match(r"^\s*(\d+)\s*\(([^)]+(?:\([^)]*\)[^)]*)*)\)\s*,", inner_content)
-                if code1_match:
-                    code1 = code1_match.group(1)
-                    entity = code1_match.group(2).strip()
+                id_farmaco_1_match = re.match(r"^\s*(\d+)\s*\(([^)]+(?:\([^)]*\)[^)]*)*)\)\s*,", inner_content)
+                if id_farmaco_1_match:
+                    id_farmaco_1 = id_farmaco_1_match.group(1)
+                    entity = id_farmaco_1_match.group(2).strip()
                     
                     # Posición después del primer bloque para capturar el resto
-                    pos_after_first = code1_match.end()
+                    pos_after_first = id_farmaco_1_match.end()
                     remaining = inner_content[pos_after_first:].strip()
                     
                     # Extraer la relación y el segundo código con su elemento asociado
                     relation_match = re.match(r"^([^,]+)\s*,\s*(\d+)\s*\(([^)]+(?:\([^)]*\)[^)]*)*)\)\s*$", remaining)
                     if relation_match:
-                        relation = relation_match.group(1).strip()
-                        code2 = relation_match.group(2)
-                        related_element = relation_match.group(3).strip()
-                        return (line_num, code1, entity, relation, code2, related_element, score)
+                       relacion = relation_match.group(1).strip()
+                       id_farmaco_2 = relation_match.group(2)
+                       Elemento_Relacionado = relation_match.group(3).strip()
+                       return (linea, id_farmaco_1, entity, relacion, id_farmaco_2, Elemento_Relacionado, fuerza_relacion)
             
             # 2. Intentar con el formato extendido estándar
             pattern_ext = r"^(\d+):\s*\(\s*(\d+)\s*\(([^)]+)\)\s*,\s*([^,]+)\s*,\s*(\d+)\s*\(([^)]+)\)\s*\)\s*([\d.]+)(?:,)?$"
             match_ext = re.match(pattern_ext, entry)
             if match_ext:
                 return (match_ext.group(1),   # Línea
-                        match_ext.group(2),   # Código1
+                        match_ext.group(2),   # id_farmaco_1
                         match_ext.group(3),   # Entidad
                         match_ext.group(4),   # Relación
-                        match_ext.group(5),   # Código2
+                        match_ext.group(5),   # id_farmaco_2
                         match_ext.group(6),   # Elemento Relacionado
-                        match_ext.group(7))   # Score
+                        match_ext.group(7))   # fuerza_relacion
             
             # 3. Intentar con el formato original (4 campos)
             pattern_orig = r"^(\d+):\s*\((.*)\)$"
