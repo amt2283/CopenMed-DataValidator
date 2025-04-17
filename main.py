@@ -1,4 +1,3 @@
-from venv import logger
 import pandas as pd
 import argparse
 import sys
@@ -14,8 +13,14 @@ from logs import GestionLogs
 from config import CONFIG
 from gestion_de_datos import DataLoader
 
-def cargar_datos(ruta_archivo):
-    logger.info(f"Cargando datos desde {ruta_archivo}")
+# Crear un logger temporal para esta función hasta que se inicialice el gestor de logs
+logger = logging.getLogger(__name__)
+
+def cargar_datos(ruta_archivo, custom_logger=None):
+    # Usar el logger proporcionado o el predeterminado
+    log = custom_logger or logger
+    
+    log.info(f"Cargando datos desde {ruta_archivo}")
     try:
         file_extension = ruta_archivo.split('.')[-1].lower()
         if file_extension in ['xlsx', 'xls']:
@@ -34,10 +39,10 @@ def cargar_datos(ruta_archivo):
             loader = DataLoader(ruta_archivo, chunk_size=CONFIG.get("batch_size", 10000), has_header=False)
             return loader.load_csv_or_excel(remove_garbage=True)
         else:
-            logger.error(f"Formato de archivo no soportado: {ruta_archivo}")
+            log.error(f"Formato de archivo no soportado: {ruta_archivo}")
             sys.exit(1)
     except Exception as e:
-        logger.error(f"Error al cargar el archivo {ruta_archivo}: {e}")
+        log.error(f"Error al cargar el archivo {ruta_archivo}: {e}")
         sys.exit(1)
 
 def guardar_resultados(resultados, prefijo="reporte_"):
@@ -101,6 +106,26 @@ def obtener_config_interactivo():
         json.dump(interactive_args, f, indent=2)
     return interactive_args
 
+def guardar_resultados(resultados, prefijo="relaciones_invalidas_"):
+    """
+    Guarda los resultados en un archivo JSON con un nombre identificable.
+    El nombre incluye el prefijo, la fecha y hora actuales en formato legible
+    y la cantidad de relaciones inválidas encontradas.
+    """
+    # Fecha en formato más legible (día-mes-año)
+    fecha = datetime.now().strftime("%d-%m-%Y")
+    # Hora en formato de 24 horas
+    hora = datetime.now().strftime("%H-%M")
+    # Cantidad de relaciones inválidas
+    cantidad = len(resultados)
+    
+    # Nombre de archivo más descriptivo
+    filename = f"{prefijo}{fecha}_hora_{hora}_total_{cantidad}.json"
+    
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(resultados, f, ensure_ascii=False, indent=2)
+    print(f"✅ Resultados guardados en: {filename}")
+
 def main():
     """Función principal que ejecuta el verificador de relaciones médicas"""
     # Inicializar el gestor de logs
@@ -152,7 +177,8 @@ def main():
         checkpoint_manager.reiniciar()
     
     # Cargar datos usando la función que soporta CSV, JSON, Excel y TXT
-    datos = cargar_datos(opciones["datos"])
+    # Cargar datos usando la función que soporta CSV, JSON, Excel y TXT
+    datos = cargar_datos(opciones["datos"], logger)
     
     # En caso de que DataLoader para TXT retorne un generador, se consolidan los chunks
     if not isinstance(datos, pd.DataFrame):
