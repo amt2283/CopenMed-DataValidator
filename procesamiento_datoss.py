@@ -40,21 +40,41 @@ class VerificadorRelaciones:
             print(f"❌ Error: {e}")
             exit(1)
     
-    # La función verificar_relacion se mantiene sin cambios
-    def verificar_relacion(self, id_relacion, entidad1, tipo_relacion, entidad2):
-        prompt = f"""
-        Como sistema experto en medicina, evalúa si esta relación es médicamente válida:
+    # Se modifica la función para incluir el parámetro opcional fuerza_relacion (solo aplicable al formato TXT)
+    def verificar_relacion(self, id_relacion, entidad1, tipo_relacion, entidad2, fuerza_relacion=None):
+        if fuerza_relacion is not None:
+            prompt = f"""
+            Como sistema experto en medicina, evalúa si esta relación es médicamente válida considerando la fuerza de la relación:
+            
+            ID: {id_relacion}
+            Entidad 1: {entidad1}
+            Relación: {tipo_relacion}
+            Fuerza de la Relación: {fuerza_relacion}
+            Entidad 2: {entidad2}
+            
+        Considera que:
+         - Un valor cercano a 1 indica una relación muy fuerte.
+         - Un valor cercano a 0 indica que la relación apenas tiene relevancia.
+         - Un valor intermedio (por ejemplo, 0.5) sugiere que la relación es moderada.
         
-        ID: {id_relacion}
-        Entidad 1: {entidad1}
-        Relación: {tipo_relacion}
-        Entidad 2: {entidad2}
-        
-        Si "{entidad1}" implica "{entidad2}" es médicamente correcto, responde solamente "VÁLIDO".
-        Si NO es correcto, responde "INVÁLIDO" y explica brevemente por qué.
-        
-        Basa tu respuesta únicamente en conocimiento médico establecido.
-        """
+        Basándote en estos criterios y en el conocimiento médico establecido, responde:
+        - Si la relación es médicamente válida (y coherente con la fuerza indicada), responde "VÁLIDO".
+        - Si la relación es médicamente inválida o la fuerza de la relación no la respalda, responde "INVÁLIDO" y explica brevemente por qué.
+           """
+        else:
+            prompt = f"""
+            Como sistema experto en medicina, evalúa si esta relación es médicamente válida:
+            
+            ID: {id_relacion}
+            Entidad 1: {entidad1}
+            Relación: {tipo_relacion}
+            Entidad 2: {entidad2}
+            
+            Si "{entidad1}" implica "{entidad2}" es médicamente correcto, responde solamente "VÁLIDO".
+            Si NO es correcto, responde "INVÁLIDO" y explica brevemente por qué.
+            
+            Basa tu respuesta únicamente en conocimiento médico establecido.
+            """
         
         try:
             time.sleep(0.5)
@@ -107,22 +127,27 @@ class VerificadorRelaciones:
             datos = pd.DataFrame(datos)
         
         # Detectar de forma automática el nombre de la columna para el identificador.
-        # Si se usó el formato original se esperará "ID", de lo contrario se usa "Linea".
+        # Para el formato original se esperará "ID", de lo contrario se usa "Linea" (para el TXT).
         id_col = "ID" if "ID" in datos.columns else ("Linea" if "Linea" in datos.columns else None)
         if id_col is None:
             raise Exception("No se encontró la columna de identificación en los datos.")
             
-        # Para el elemento relacionado: preferir "Elemento Relacionado" y si no, "ElementoRelacionado"
-        elem_col = "Elemento Relacionado" if "Elemento Relacionado" in datos.columns else (
-                    "ElementoRelacionado" if "ElementoRelacionado" in datos.columns else None)
+        # Para el elemento relacionado:
+        # En formato original se usa "Elemento Relacionado" o "ElementoRelacionado".
+        # En el formato TXT se utiliza "ElementoRelacionado".
+        elem_col = ("Elemento Relacionado" if "Elemento Relacionado" in datos.columns 
+                    else ("ElementoRelacionado" if "ElementoRelacionado" in datos.columns else None))
         if elem_col is None:
             raise Exception("No se encontró la columna del elemento relacionado en los datos.")
             
-        # Otras columnas que se esperan están en ambos formatos:
+        # Se espera que estén estas columnas en ambos formatos: "Entidad" y "Relación"
         for col in ["Entidad", "Relación"]:
             if col not in datos.columns:
                 raise Exception(f"No se encontró la columna '{col}' en los datos.")
         
+        # Detectar si se está trabajando con el formato TXT (donde también se espera 'fuerza_relacion')
+        tiene_fuerza = "fuerza_relacion" in datos.columns
+
         ids_procesados = set(self.checkpoint_manager.checkpoint.get("ids_procesados", []))
         datos_filtrados = datos[~datos[id_col].astype(str).isin(ids_procesados)]
         
@@ -147,7 +172,13 @@ class VerificadorRelaciones:
                 elemento = fila[elem_col]
                 print(f"📊 Verificando: {id_rel} - {entidad} -> {elemento}")
                 
-                resultado = self.verificar_relacion(id_rel, entidad, relacion, elemento)
+                # Si es formato TXT, se utiliza la fuerza de relación al verificar la relación
+                if tiene_fuerza:
+                    fuerza = fila["fuerza_relacion"]
+                    resultado = self.verificar_relacion(id_rel, entidad, relacion, elemento, fuerza)
+                else:
+                    resultado = self.verificar_relacion(id_rel, entidad, relacion, elemento)
+                
                 if resultado["validez"] in ["inválido", "error"]:
                     resultados.append(resultado)
                 
@@ -200,32 +231,38 @@ def cargar_datos(ruta_o_datos):
     raise ValueError("Formato de datos no soportado")
 
 
-# Código de prueba
 if __name__ == "__main__":
     # Inicializar el verificador con la configuración
     verificador = VerificadorRelaciones()
-    
-    # Datos de ejemplo (esto podría venir de un archivo)
-    datos_ejemplo = [
+
+    # Definimos un único caso de prueba con Linea = 29 y fuerza_relacion = 0.500000
+    datos_txt = [
         {
-            "ID": "44303",
-            "Entidad": "Deposiciones/heces grasosas o aceitosas",
-            "Relación": "Symptom1 implies Symptom2",
-            "Elemento Relacionado": "Diarrea"
-        },
-        {
-            "ID": "44304",
-            "Entidad": "Fiebre alta",
-            "Relación": "Symptom1 implies Symptom2",
-            "Elemento Relacionado": "Aumento de apetito"  # Esta relación debería ser inválida
+            "Linea": "29",
+            "id_farmaco_1": "16",
+            "Entidad": "Ácido acetilsalicílico",
+            "Relación": "Treatment may cause Symptom",
+            "id_farmaco_2": "25",
+            "ElementoRelacionado": "Urticaria",
+            "fuerza_relacion": "0.500000"
         }
     ]
-    
-    # Cargar datos (adaptar según cómo se reciben los datos)
-    datos = cargar_datos(datos_ejemplo)
-    
-    # Procesar los datos
+
+    # Cargamos los datos y los procesamos
+    datos = cargar_datos(datos_txt)
     relaciones_invalidas, total = verificador.procesar_datos(datos)
-    
-    # Generar reporte
-    verificador.generar_reporte(relaciones_invalidas, total)
+
+    # Imprimimos el resultado crudo para ver validez y justificación
+    print("Total procesado:", total)
+    print("Relaciones inválidas (si las hay):", relaciones_invalidas)
+
+    # Si solo quieres ver la respuesta de ese prompt sin todo el batch:
+    resultado_unitario = verificador.verificar_relacion(
+        id_relacion="29",
+        entidad1="Ácido acetilsalicílico",
+        tipo_relacion="Treatment may cause Symptom",
+        entidad2="Urticaria",
+        fuerza_relacion="1.000000"
+    )
+    print("\nRespuesta directa al prompt con fuerza_relacion:")
+    print(resultado_unitario)
